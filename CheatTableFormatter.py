@@ -1,4 +1,6 @@
 import os
+import treelib
+from typing import Optional
 from argparse import ArgumentParser
 from dataclasses import dataclass, field
 import xml.etree.ElementTree as ET
@@ -22,16 +24,11 @@ def parse_cheat_entries(et_entries: ET.Element) -> list[CheatEntry]:
         entries.append(entry)
     return entries
 
-def print_cheat_entry(entry: CheatEntry, depth: int = 0):
-    print(entry.description)
-    if entry.children:
-        depth += 1
-        space = '│  ' * (depth - 1)
-        for child in entry.children[:-1]:
-            print(f'{space}├─ ', end='')
-            print_cheat_entry(child, depth)
-        print(f'{space}└─ ', end='')
-        print_cheat_entry(entry.children[-1], depth)
+def add_entry_to_tree(tree: treelib.Tree, entry: CheatEntry, parent: Optional[str] = None):
+    node = treelib.Node(entry.description)
+    tree.add_node(node, parent)
+    for child in entry.children:
+        add_entry_to_tree(tree, child, node.identifier)
 
 def main():
     parser = ArgumentParser(description='Print out an overview of a given cheat table')
@@ -41,13 +38,11 @@ def main():
     if not os.path.isfile(args.file):
         parser.error(f'{args.file} is not a file')
 
-    try:
-        if entries := ET.parse(args.file).getroot().find('CheatEntries'):
-            cheat_table = parse_cheat_entries(entries)
-            for entry in cheat_table:
-                print_cheat_entry(entry)
-    except ET.ParseError:
-        print(f'"{args.file}" is corrupted')
+    if entries := ET.parse(args.file).getroot().find('CheatEntries'):
+        cheat_table = parse_cheat_entries(entries)
+        tree = treelib.Tree()
+        add_entry_to_tree(tree, CheatEntry('CheatTable', cheat_table))  # Need a root node containing all entries
+        tree.show()
 
 if __name__ == '__main__':
     main()
